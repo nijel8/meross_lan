@@ -531,7 +531,7 @@ class MLLight(MLLightBase):
                     self.color_mode = ColorMode.COLOR_TEMP
                     return
 
-                if capacity & mc.LIGHT_CAPACITY_LUMINANCE:
+                if ColorMode.BRIGHTNESS in self.supported_color_modes:
                     self.color_mode = ColorMode.BRIGHTNESS
                     return
 
