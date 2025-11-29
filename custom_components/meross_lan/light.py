@@ -571,7 +571,7 @@ class MLLight(MLLightBase):
             elif self._t_temp_end:
                 _light[mc.KEY_CAPACITY] = mc.LIGHT_CAPACITY_TEMPERATURE_LUMINANCE
             else:
-                _light[mc.KEY_CAPACITY] = mc.LIGHT_CAPACITY_LUMINANCE
+                _light[mc.KEY_CAPACITY] |= mc.LIGHT_CAPACITY_LUMINANCE
         else:
             _t_duration = None
             if ATTR_BRIGHTNESS in kwargs:
@@ -590,7 +590,7 @@ class MLLight(MLLightBase):
                 )
                 _light[mc.KEY_CAPACITY] = mc.LIGHT_CAPACITY_TEMPERATURE_LUMINANCE
             else:
-                _light[mc.KEY_CAPACITY] = mc.LIGHT_CAPACITY_LUMINANCE
+                _light[mc.KEY_CAPACITY] |= mc.LIGHT_CAPACITY_LUMINANCE
 
         if await self.async_request_light_on_flush(_light):
             if _t_duration:
