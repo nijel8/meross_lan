@@ -221,7 +221,9 @@ class NamespaceHandler:
                 {ns.key: _request_payload_type.value},
             )
 
-    def polling_request_add_channel(self, channel, extra: dict = {}, /):
+    def polling_request_add_channel(
+        self, channel, extra: "mt.MerossPayloadType" = {}, /
+    ):
         # Ensures the channel is set in polling request payload should
         # the ns need it. Also adjusts the estimated polling_response_size.
         polling_request_channels = self.polling_request_channels
