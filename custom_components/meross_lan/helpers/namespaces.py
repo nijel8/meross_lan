@@ -56,7 +56,7 @@ class NamespaceParser(Loggable if TYPE_CHECKING else object):
 
     async def async_shutdown(self):
         if self.namespace_handlers:
-            for handler in set(self.namespace_handlers):
+            for handler in tuple(self.namespace_handlers):
                 handler.unregister(self)
 
     def _parse(self, payload: dict, /):
@@ -64,7 +64,7 @@ class NamespaceParser(Loggable if TYPE_CHECKING else object):
         when the parser is registered to a NamespaceHandler for a given namespace
         and no 'better' _parse_xxxx has been defined. See NamespaceHandler.register.
         At this root level, coming here is likely an error but this feature
-        (default parser) is being leveraged to setup a quick parsing route for some
+        (default parser) is being leveraged to setup a default parsing route for some
         specific class of entities instead of having to define a specific _parse_xxxx.
         This is useful for generalized sensor classes which are just mapped to a single
         namespace."""

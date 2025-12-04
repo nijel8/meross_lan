@@ -144,7 +144,7 @@ class EntityManager(Loggable):
                 self.log_exception(
                     self.WARNING, exception, "cancelling task %s during shutdown", task
                 )
-        for entity in set(self.entities.values()):
+        for entity in tuple(self.entities.values()):
             # async_shutdown will pop out of self.entities
             await entity.async_shutdown()
         if self._tasks:
