@@ -12,7 +12,6 @@ from aiohttp import payload
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from custom_components.meross_lan import const as mlc
-from custom_components.meross_lan.helpers.manager import ConfigEntryManager
 from custom_components.meross_lan.merossclient import (
     HostAddress,
     MerossDeviceDescriptor,
@@ -33,7 +32,6 @@ from custom_components.meross_lan.merossclient.protocol.message import (
     MerossMessage,
     MerossRequest,
     build_message,
-    compute_message_encryption_key,
     get_replykey,
 )
 
@@ -348,9 +346,9 @@ class MerossEmulator:
         self._cipher = (
             Cipher(
                 algorithms.AES(
-                    compute_message_encryption_key(
+                    MerossMessage.compute_encryption_key(
                         descriptor.uuid, key, descriptor.macAddress
-                    ).encode("utf-8")
+                    )
                 ),
                 modes.CBC("0000000000000000".encode("utf8")),
             )
@@ -456,9 +454,9 @@ class MerossEmulator:
                     request_header[mc.KEY_NAMESPACE],
                     mc.METHOD_ERROR,
                     {mc.KEY_ERROR: {mc.KEY_CODE: mc.ERROR_INVALIDKEY}},
-                    request_header[mc.KEY_MESSAGEID],
                     self.key,
-                    self.topic_response,
+                    messageid=request_header[mc.KEY_MESSAGEID],
+                    from_=self.topic_response,
                 )
             else:
                 response = self._handle_message(request_header, request_payload)
@@ -530,9 +528,9 @@ class MerossEmulator:
                 header[mc.KEY_NAMESPACE],
                 response_method,
                 response_payload,
-                header[mc.KEY_MESSAGEID],
                 self.key,
-                self.topic_response,
+                messageid=header[mc.KEY_MESSAGEID],
+                from_=self.topic_response,
             )
             return response
 

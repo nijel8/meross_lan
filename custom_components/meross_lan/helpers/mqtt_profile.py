@@ -23,7 +23,6 @@ from ..merossclient.protocol import MerossKeyError, const as mc, namespaces as m
 from ..merossclient.protocol.message import (
     MerossRequest,
     MerossResponse,
-    check_message_strict,
     get_message_uuid,
     get_replykey,
 )
@@ -41,12 +40,13 @@ if TYPE_CHECKING:
     import paho.mqtt.client as paho_mqtt
 
     from ..merossclient import HostAddress
+    from ..merossclient.cloudapi import DeviceInfoType, LatestVersionType
     from ..merossclient.protocol.message import MerossMessage
     from ..merossclient.protocol.types import (
         MerossHeaderType,
         MerossPayloadType,
     )
-    from .device import Device
+    from .device import Device, MerossDeviceDescriptor
 
 
 class ConnectionSensor(me.MEAlwaysAvailableMixin, MLDiagnosticSensor):
@@ -561,7 +561,7 @@ class MQTTConnection(Loggable):
         to speed up things. Raises exception in case of error
         """
         try:
-            response = check_message_strict(
+            response = MerossResponse.check_(
                 await self.async_mqtt_publish(
                     device_id,
                     MerossRequest(
@@ -579,7 +579,7 @@ class MQTTConnection(Loggable):
             raise Exception("Unable to identify abilities") from exception
 
         try:
-            response = check_message_strict(
+            response = MerossResponse.check_(
                 await self.async_mqtt_publish(
                     device_id,
                     MerossRequest(
@@ -761,6 +761,14 @@ class MQTTProfile(ConfigEntryManager):
     @property
     def allow_mqtt_publish(self):
         return self.config.get(CONF_ALLOW_MQTT_PUBLISH)
+
+    def get_device_info(self, uuid: str) -> "DeviceInfoType | None":
+        return None
+
+    def get_latest_version(
+        self, descriptor: "MerossDeviceDescriptor"
+    ) -> "LatestVersionType | None":
+        return None
 
     def link(self, device: "Device"):
         device_id = device.id

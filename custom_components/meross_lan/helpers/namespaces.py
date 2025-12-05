@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 
 from .. import const as mlc
 from ..merossclient.protocol import const as mc, namespaces as mn
-from ..merossclient.protocol.message import check_message_strict
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Coroutine
@@ -715,8 +714,7 @@ class NamespaceHandler:
                 def _check_response(_response: "MerossResponse | None"):
                     if _response:
                         try:
-                            _response = check_message_strict(_response)
-                            payload = _response["payload"][ns_key]
+                            payload = _response.check()["payload"][ns_key]
                             if type(payload) is list:
                                 return channels_count == len(payload)
                             else:  # dict

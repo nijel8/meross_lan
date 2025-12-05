@@ -4,7 +4,6 @@ from datetime import UTC, tzinfo
 from json import JSONDecodeError
 from time import time
 from typing import TYPE_CHECKING
-from uuid import uuid4
 import zoneinfo
 
 import aiohttp
@@ -40,8 +39,6 @@ from ..merossclient.httpclient import MerossHttpClient, TerminatedException
 from ..merossclient.protocol.message import (
     MerossRequest,
     MerossResponse,
-    compute_message_encryption_key,
-    compute_message_signature,
     get_message_uuid,
 )
 from ..sensor import ProtocolSensor
@@ -414,7 +411,6 @@ class Device(BaseDevice, ConfigEntryManager):
         "needsave",
         "_async_entry_update_unsub",
         "device_debug",
-        "device_info",
         "device_timestamp",
         "device_timedelta",
         "device_timedelta_log_epoch",
@@ -467,7 +463,6 @@ class Device(BaseDevice, ConfigEntryManager):
         self._async_entry_update_unsub = None
         self.curr_protocol = CONF_PROTOCOL_AUTO
         self.device_debug = None
-        self.device_info = None
         self.device_timestamp = 0
         self.device_timedelta = 0
         self.device_timedelta_log_epoch = 0
@@ -544,23 +539,11 @@ class Device(BaseDevice, ConfigEntryManager):
             entity_category=MLPersistentButton.EntityCategory.DIAGNOSTIC,
         )
 
-        self._update_config()
-
-        # the update entity will only be instantiated 'on demand' since
-        # we might not have this for devices not related to a cloud profile
-        # This cleanup code is to ease the transition out of the registry
-        # when previous version polluted it
-        ent_reg = self.api.entity_registry
-        update_firmware_entity_id = ent_reg.async_get_entity_id(
-            MLUpdate.PLATFORM, mlc.DOMAIN, f"{self.id}_update_firmware"
-        )
-        if update_firmware_entity_id:
-            ent_reg.async_remove(update_firmware_entity_id)
-
     async def async_init(self):
-        api = self.api
-        descriptor = self.descriptor
 
+        await self._async_update_config()
+
+        descriptor = self.descriptor
         if tzname := descriptor.timezone:
             # self.tz defaults to UTC on init
             with self.exception_warning(
@@ -568,7 +551,7 @@ class Device(BaseDevice, ConfigEntryManager):
                 tzname,
                 timeout=14400,
             ):
-                self.tz = await api.async_load_zoneinfo(tzname)
+                self.tz = await self.api.async_load_zoneinfo(tzname)
 
         for namespace, ns_init_func in Device.NAMESPACE_INIT.items():
             if namespace not in descriptor.ability:
@@ -579,7 +562,7 @@ class Device(BaseDevice, ConfigEntryManager):
                 except TypeError:
                     try:
                         ns_init_func = getattr(
-                            await api.async_import_module(ns_init_func[0]),
+                            await self.api.async_import_module(ns_init_func[0]),
                             ns_init_func[1],
                         )
                     except Exception as exception:
@@ -617,7 +600,7 @@ class Device(BaseDevice, ConfigEntryManager):
                             key_digest, f".devices.{key_slug}"
                         )
                         digest_init_func: "DigestInitFunc" = getattr(
-                            await api.async_import_module(_module_path),
+                            await self.api.async_import_module(_module_path),
                             f"digest_init_{key_slug}",
                         )
                     except Exception as exception:
@@ -669,7 +652,7 @@ class Device(BaseDevice, ConfigEntryManager):
             return
 
         await super().entry_update_listener(hass, config_entry)
-        self._update_config()
+        await self._async_update_config()
         self._check_protocol_ext()
 
         # config_entry update might come from DHCP or OptionsFlowHandler address update
@@ -839,6 +822,8 @@ class Device(BaseDevice, ConfigEntryManager):
 
     def loggable_diagnostic_state(self):
         """Return a 'loggable' version of the entry state (for diagnostic/logging purposes)"""
+        profile = self._profile
+        device_info = profile.get_device_info(self.id) if profile else None
         return {
             "class": type(self).__name__,
             "conf_protocol": self.conf_protocol,
@@ -848,9 +833,7 @@ class Device(BaseDevice, ConfigEntryManager):
             "device_response_size_min": self.device_response_size_min,
             "device_response_size_max": self.device_response_size_max,
             "MQTT": {
-                "cloud_profile": (
-                    self._profile.is_cloud_profile if self._profile else None
-                ),
+                "cloud_profile": (profile.is_cloud_profile if profile else None),
                 "locally_active": bool(self.mqtt_locallyactive),
                 "mqtt_connection": bool(self._mqtt_connection),
                 "mqtt_connected": bool(self._mqtt_connected),
@@ -880,9 +863,9 @@ class Device(BaseDevice, ConfigEntryManager):
                 for handler in self.namespace_handlers.values()
             },
             "device_info": (
-                obfuscated_dict(self.device_info)
-                if self.obfuscate and self.device_info
-                else self.device_info
+                obfuscated_dict(device_info)
+                if self.obfuscate and device_info
+                else device_info
             ),
         }
 
@@ -1303,7 +1286,7 @@ class Device(BaseDevice, ConfigEntryManager):
                 mn.Appliance_Control_Multiple.key: [
                     {
                         mc.KEY_HEADER: {
-                            mc.KEY_MESSAGEID: uuid4().hex,
+                            mc.KEY_MESSAGEID: MerossRequest.generate_id(),
                             mc.KEY_METHOD: request[1],
                             mc.KEY_NAMESPACE: request[0],
                         },
@@ -1368,7 +1351,7 @@ class Device(BaseDevice, ConfigEntryManager):
                         mn.Appliance_Control_Multiple.key: [
                             {
                                 mc.KEY_HEADER: {
-                                    mc.KEY_MESSAGEID: uuid4().hex,
+                                    mc.KEY_MESSAGEID: MerossRequest.generate_id(),
                                     mc.KEY_METHOD: request[1],
                                     mc.KEY_NAMESPACE: request[0],
                                 },
@@ -2095,9 +2078,7 @@ class Device(BaseDevice, ConfigEntryManager):
             # it appears sometimes the devices
             # send an incorrect signature hash
             # but at the moment this is unlikely to be critical
-            sign = compute_message_signature(
-                header[mc.KEY_MESSAGEID], self.key, header[mc.KEY_TIMESTAMP]
-            )
+            sign = message.compute_signature(self.key)
             if sign != header[mc.KEY_SIGN]:
                 self.log(
                     self.DEBUG,
@@ -2530,7 +2511,7 @@ class Device(BaseDevice, ConfigEntryManager):
         if self.online:
             self.sensor_protocol.set_available()
 
-    def _update_config(self):
+    async def _async_update_config(self):
         """
         common properties caches, read from ConfigEntry on __init__ or when a configentry updates
         """
@@ -2555,7 +2536,7 @@ class Device(BaseDevice, ConfigEntryManager):
         if (self.conf_protocol is CONF_PROTOCOL_MQTT) or (not host):
             # no room for http transport...
             if _http:
-                _http.terminate()
+                await _http.async_terminate()
                 self._http = self._http_active = None
                 self.sensor_protocol.update_attr_inactive(ProtocolSensor.ATTR_HTTP)
         else:
@@ -2565,13 +2546,10 @@ class Device(BaseDevice, ConfigEntryManager):
                 _http.key = self.key
             else:
                 _http = self._http = MerossHttpClient(host, self.key)
-            _http.set_encryption(
-                compute_message_encryption_key(
-                    self.descriptor.uuid, self.key, self.descriptor.macAddress
-                ).encode("utf-8")
-                if mn.Appliance_Encrypt_ECDHE.name in self.descriptor.ability
-                else None
-            )
+            if mn.Appliance_Encrypt_ECDHE.name in self.descriptor.ability:
+                _http.enable_encryption(self.id, self.key, self.descriptor.macAddress)
+            else:
+                _http.disable_encryption()
 
     def _check_uuid_mismatch(self, response_uuid: str):
         """when detecting a wrong uuid from a response we offline the device"""
@@ -2596,7 +2574,6 @@ class Device(BaseDevice, ConfigEntryManager):
 
     def update_device_info(self, device_info: "DeviceInfoType"):
         api = self.api
-        self.device_info = device_info
         name = device_info.get(mc.KEY_DEVNAME) or self._get_internal_name()
         if name != self.device_registry_entry.name:
             api.device_registry.async_update_device(
