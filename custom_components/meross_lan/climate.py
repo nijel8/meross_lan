@@ -149,11 +149,7 @@ class MtsClimate(me.MLEntity, climate.ClimateEntity):
         "sensor_current_temperature",
     )
 
-    def __init__(
-        self,
-        manager: "BaseDevice",
-        channel: object,
-    ):
+    def __init__(self, manager: "BaseDevice", channel: object, /):
         self.current_humidity = None
         self.current_temperature = None
         self.hvac_action = None
@@ -246,18 +242,18 @@ class MtsClimate(me.MLEntity, climate.ClimateEntity):
         raise NotImplementedError()
 
     # interface: self
-    async def async_request_preset(self, mode: int):
+    async def async_request_preset(self, mode: int, /):
         """Implements the protocol to set the Meross thermostat mode"""
         raise NotImplementedError()
 
-    async def async_request_onoff(self, onoff: int):
+    async def async_request_onoff(self, onoff: int, /):
         """Implements the protocol to turn on the thermostat"""
         raise NotImplementedError()
 
-    def is_mts_scheduled(self):
+    def is_mts_scheduled(self, /):
         raise NotImplementedError()
 
-    def get_ns_adjust(self) -> "NamespaceHandler":
+    def get_ns_adjust(self, /) -> "NamespaceHandler":
         """
         Returns the correct ns handler for the adjust namespace.
         Used to trigger a poll and the ns which is by default polled
@@ -265,7 +261,7 @@ class MtsClimate(me.MLEntity, climate.ClimateEntity):
         """
         raise NotImplementedError()
 
-    def _update_current_temperature(self, current_temperature: float | int):
+    def _update_current_temperature(self, current_temperature: float | int, /):
         """
         Common handler for incoming room temperature value
         """
@@ -306,11 +302,7 @@ class MtsSetPointNumber(MLConfigNumber):
         "key_value",
     )
 
-    def __init__(
-        self,
-        climate: "MtsClimate",
-        preset_mode: "MtsClimate.Preset",
-    ):
+    def __init__(self, climate: "MtsClimate", preset_mode: "MtsClimate.Preset", /):
         self.climate = climate
         self.icon = climate.PRESET_TO_ICON_MAP[preset_mode]
         self.key_value = climate.MTS_MODE_TO_TEMPERATUREKEY_MAP[
@@ -337,7 +329,7 @@ class MtsSetPointNumber(MLConfigNumber):
     def native_step(self):
         return self.climate.target_temperature_step
 
-    async def async_request_value(self, device_value):
+    async def async_request_value(self, device_value, /):
         if response := await super().async_request_value(device_value):
             # mts100(s) reply to the setack with the 'full' (or anyway richer) payload
             # so we'll use the _parse_temperature logic (a bit overkill sometimes) to
