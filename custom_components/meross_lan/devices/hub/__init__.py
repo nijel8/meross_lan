@@ -17,7 +17,6 @@ from ...helpers.namespaces import (
 from ...merossclient import get_productnameuuid
 from ...merossclient.protocol.namespaces import hub as mn_h
 from ...number import MLConfigNumber
-from ...select import MtsTrackedSensor
 from ...sensor import (
     MLDiagnosticSensor,
     MLEnumSensor,
@@ -334,7 +333,7 @@ class HubMixin(Device if TYPE_CHECKING else object):
         MLNumericSensor.PLATFORM: None,
         MLSwitch.PLATFORM: None,
         MtsClimate.PLATFORM: None,
-        MtsTrackedSensor.PLATFORM: None,
+        MtsClimate.TrackSensorSelect.PLATFORM: None,
     }
 
     TRACE_ABILITY_EXCLUDE = Device.TRACE_ABILITY_EXCLUDE + (
