@@ -1754,36 +1754,41 @@ class Device(BaseDevice, ConfigEntryManager):
 
             else:  # offline or 'likely' offline (failed last request)
                 ns_all_handler = self.namespace_handlers[mn.Appliance_System_All.name]
-                ns_all_response = None
-                if self.conf_protocol is CONF_PROTOCOL_AUTO:
-                    if self._http:
-                        ns_all_response = await self.async_http_request(
-                            *ns_all_handler.polling_request
+                coro_func: list["AsyncRequestFunc"] = []
+                if self._http:
+                    coro_func.append(self.async_http_request)
+                if self._mqtt_publish:
+                    coro_func.append(self.async_mqtt_request)
+
+                if len(coro_func) > 1:
+                    tasks = {
+                        self.async_create_task(
+                            coro(*ns_all_handler.polling_request),
+                            f".async_poll_{coro.__name__}_task",
                         )
-                    if self._mqtt_publish and not self.online:
-                        ns_all_response = await self.async_mqtt_request(
-                            *ns_all_handler.polling_request
-                        )
-                elif self.conf_protocol is CONF_PROTOCOL_MQTT:
-                    if self._mqtt_publish:
-                        ns_all_response = await self.async_mqtt_request(
-                            *ns_all_handler.polling_request
-                        )
-                else:  # self.conf_protocol is CONF_PROTOCOL_HTTP:
-                    if self._http:
-                        ns_all_response = await self.async_http_request(
-                            *ns_all_handler.polling_request
-                        )
+                        for coro in coro_func
+                    }
+                    # use pre 3.13 compatible syntax/semantics
+                    for earliest_connect in asyncio.as_completed(tasks, timeout=5):
+                        ns_all_response = await earliest_connect
+                        if ns_all_response:
+                            # got a response: we could cancel all other tasks
+                            # but we leave'em so that transports can come online later
+                            # for task in tasks:
+                            #     task.cancel()
+                            break
+                    else:  # shouldnt be needed: just silences type-checker
+                        ns_all_response = None
+                elif coro_func:
+                    ns_all_response = await coro_func[0](
+                        *ns_all_handler.polling_request
+                    )
+                else:
+                    raise asyncio.TimeoutError("No transport available for polling")
 
                 if not ns_all_response:
-                    if self.online:
-                        self._set_offline()
-                    else:
-                        if self._polling_delay < PARAM_HEARTBEAT_PERIOD:
-                            self._polling_delay += self.polling_period
-                        else:
-                            self._polling_delay = PARAM_HEARTBEAT_PERIOD
-                    return
+                    raise asyncio.TimeoutError("No response for NS_ALL polling")
+
                 ns_all_handler.lastrequest = epoch
                 ns_all_handler.polling_epoch_next = (
                     epoch + ns_all_handler.polling_period
@@ -1850,6 +1855,13 @@ class Device(BaseDevice, ConfigEntryManager):
         except asyncio.CancelledError:
             self.log(self.DEBUG, "Polling cancelled")
             raise
+        except asyncio.TimeoutError:
+            if self.online:
+                self._set_offline()
+            elif self._polling_delay < PARAM_HEARTBEAT_PERIOD:
+                self._polling_delay += self.polling_period
+            else:
+                self._polling_delay = PARAM_HEARTBEAT_PERIOD
         except Exception as e:
             self.log_exception(self.WARNING, e, "_async_poll")
         finally:
