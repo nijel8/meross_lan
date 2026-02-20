@@ -22,4 +22,5 @@ For specific namespace and payload code for your particular device dig into [mer
 - [@krahabb](https://github.com/krahabb)
 - [@albertogeniola](https://github.com/albertogeniola)
 - [@arandall](https://github.com/arandall)
+
 for their great work!!!
