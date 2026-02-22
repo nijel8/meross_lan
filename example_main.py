@@ -19,6 +19,7 @@ async def main():
     # Check current ON/OFF state setting up command payload accordingly
     is_on = "'onoff': 1,"
     if is_on in str(response):
+        # Device is ON, set payload to turn it OFF
         payload = {
                     "modeB": [{
                         "channel": 0,
@@ -26,6 +27,7 @@ async def main():
                     }]
                   }
     else:
+        # Device is OFF, set payload to turn it ON in HEAT mode
         payload = {
                     "modeB": [{
                         "channel": 0,

@@ -12,13 +12,10 @@ async def main():
 
     async with aiohttp.ClientSession() as session:
         key = await cloudapi.async_get_cloud_key(email, password, session)
-        pass
 
-    print("")
-    print("=====================DEVICE_KEY========================")
+    print("\n=====================DEVICE_KEY========================")
     print(key)
-    print("=======================================================")
-    print("")
+    print("=======================================================\n")
 
     input("Press Enter to continue...")
 

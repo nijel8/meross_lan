@@ -10,6 +10,9 @@ import sys
 
 import const as mc
 
+class MerossApiError(Exception):
+    pass
+
 async def async_merossapi_post(
     url_or_path: str,
     data: dict,
@@ -66,16 +69,19 @@ async def async_get_cloud_key(
                 # kindly invalidate login token so to not exhaust our pool...
                 try:
                     await async_merossapi_post(
-                        mc.MEROSS_API_LOGOUT_PATH,
+                        mc.MEROSS_API_V1_URL + mc.MEROSS_API_LOGOUT_PATH,
                         {},
                         data[mc.KEY_TOKEN],
                         session=session
                     )
                 except:
-                    pass# don't care if any failure here: we have the key anyway
+                    pass # don't care if any failure here: we have the key anyway
                 return key
+            else:
+                raise MerossApiError(response)
+        else:
+            raise MerossApiError(response)
     except:
-        print("==============ERROR: cloud response:=================")
-        print(response)
-        print("=====================================================")
-        pass
+        raise MerossApiError(response)
+
+    raise MerossApiError(response)
